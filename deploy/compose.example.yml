@@ -1,0 +1,30 @@
+# Standalone overlay. Set MAIBOT_NETWORK to the inspected core network name.
+# No host port is published. Do not overwrite the existing MaiBot compose file.
+services:
+  goreview-worker:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      GOREVIEW_DATA: /data
+    volumes:
+      - goreview-data:/data
+    networks:
+      - maibot
+    init: true
+    shm_size: 256mb
+    mem_limit: 1200m
+    cpus: 1.0
+    pids_limit: 256
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+volumes:
+  goreview-data:
+networks:
+  maibot:
+    external: true
+    name: ${MAIBOT_NETWORK:?Set the inspected MaiBot network name}
