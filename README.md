@@ -14,6 +14,8 @@
 
 ## 配置智子账户
 
+[智子账户、Token 获取和配置步骤](docs/ZHIZI_TOKEN.md)
+
 在 [智子围棋](https://www.zhizigo.com/) 注册或登录账号。安装插件后，在插件配置里填写智子手机号或邮箱和密码；如果已有用户 Token，也可以直接填写 Token。开启插件并设置允许使用的群后，阿羽就能开始复盘啦～
 
 如需单独获取 Token，可运行 `python tools/zhizi_login.py`；准备私有配置文件等步骤见 [安装指南](docs/INSTALL.md)。
