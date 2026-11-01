@@ -2,7 +2,7 @@
   "manifest_version": 2,
   "id": "ayu.goreview",
   "name": "阿羽围棋复盘",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "内置围棋复盘服务，支持野狐棋谱与智子围棋 KataGo。",
   "author": {
     "name": "toya",

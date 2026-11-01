@@ -68,6 +68,17 @@ class GoReviewPlugin(MaiBotPlugin):
         self.lifecycle = asyncio.Lock()
         self.worker_lifespan = None
         self.worker_app = None
+        self.start_task = None
+
+    async def _initialize_embedded(self):
+        try:
+            await self._start_embedded_worker()
+            self.deliveries = DeliveryStore(self.ctx.paths.data_dir/'delivery.sqlite3')
+            self.poller = asyncio.create_task(self._poll())
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            self.ctx.logger.warning('GoReview not ready: %s', type(exc).__name__)
 
     async def _start_embedded_worker(self):
         from .goreview.app import create_app
@@ -135,13 +146,9 @@ class GoReviewPlugin(MaiBotPlugin):
             if mode == 'auto':
                 mode = 'external' if (self.config.worker.token or os.environ.get('GOREVIEW_WORKER_TOKEN')) else 'embedded'
             if mode == 'embedded':
-                try:
-                    await self._start_embedded_worker()
-                except Exception as exc:
-                    self.ctx.logger.warning('GoReview not ready: %s', type(exc).__name__)
+                if self.start_task and not self.start_task.done():
                     return
-                self.deliveries = DeliveryStore(self.ctx.paths.data_dir/'delivery.sqlite3')
-                self.poller = asyncio.create_task(self._poll())
+                self.start_task = asyncio.create_task(self._initialize_embedded())
                 return
             if mode != 'external':
                 self.ctx.logger.error('GoReview not ready: invalid_worker_mode')
@@ -163,6 +170,10 @@ class GoReviewPlugin(MaiBotPlugin):
 
     async def on_unload(self):
         async with self.lifecycle:
+            startup, self.start_task = self.start_task, None
+            if startup and not startup.done():
+                startup.cancel()
+                await asyncio.gather(startup, return_exceptions=True)
             task, self.poller = self.poller, None
             if task:
                 task.cancel()
@@ -222,13 +233,18 @@ class GoReviewPlugin(MaiBotPlugin):
         return {'action':'continue' if result['continue_processing'] else 'abort'}
 
     async def on_mention(self,message=None,**kwargs):
-        if not self.config.plugin.enabled or self.client is None:return {'continue_processing':True}
+        if not self.config.plugin.enabled:return {'continue_processing':True}
         try:
             request=mentioned_fox_request(message)
             if not request or request['group_id'] not in self.config.plugin.allowed_groups:
                 return {'continue_processing':True}
             if not request['stream_id'] or not message.get('message_id'):
                 return {'continue_processing':True}
+            if self.client is None:
+                text = ('阿羽正在准备复盘环境，稍等一会儿再试哦～' if self.start_task and not self.start_task.done()
+                        else '复盘服务还没准备好，请管理员检查智子账号和插件日志哦～')
+                await self._say(text, request['stream_id'])
+                return {'continue_processing':False}
             owner=self._owner(request)
             key=hmac.new(self.token.encode(),json.dumps([owner,request['stream_id'],message['message_id']]).encode(),hashlib.sha256).hexdigest()
             if not self.deliveries.claim_message(key):return {'continue_processing':False}
