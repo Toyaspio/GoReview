@@ -2,7 +2,7 @@
   "manifest_version": 2,
   "id": "ayu.goreview",
   "name": "阿羽围棋复盘",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "内置围棋复盘服务，支持野狐棋谱与智子围棋 KataGo。",
   "author": {
     "name": "toya",
@@ -40,17 +40,12 @@
     {
       "type": "python_package",
       "name": "fastapi",
-      "version_spec": "==0.115.12"
-    },
-    {
-      "type": "python_package",
-      "name": "uvicorn",
-      "version_spec": "==0.34.2"
+      "version_spec": ">=0.115.12,<1"
     },
     {
       "type": "python_package",
       "name": "playwright",
-      "version_spec": "==1.56.0"
+      "version_spec": ">=1.56,<2"
     },
     {
       "type": "python_package",

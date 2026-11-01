@@ -27,6 +27,7 @@ class WorkerSection(PluginConfigBase):
     zhizi_token: str = Field(default='', repr=False, json_schema_extra={'input_type':'password'}, description='智子账户 Token')
     zhizi_account: str = Field(default='', description='智子手机号或邮箱')
     zhizi_password: str = Field(default='', repr=False, json_schema_extra={'input_type':'password'}, description='智子账户密码；已有 Token 时可留空')
+    chromium_path: str = Field(default='', description='可选：复用已有 Chromium 的程序路径；留空自动准备')
     url: str = Field(default='http://goreview-worker:8097', description='管理员配置的独立 Worker 内网地址')
     token: str = Field(default='', repr=False, json_schema_extra={'input_type':'password'},
                        description='优先使用 GOREVIEW_WORKER_TOKEN；至少32字符')
@@ -105,7 +106,7 @@ class GoReviewPlugin(MaiBotPlugin):
                 zhizi = value.get('token', '') if isinstance(value, dict) else ''
         if not zhizi:
             raise ValueError('zhizi_token_missing')
-        browser = os.environ.get('GOREVIEW_CHROMIUM') or shutil.which('chromium') or shutil.which('chromium-browser')
+        browser = self.config.worker.chromium_path or os.environ.get('GOREVIEW_CHROMIUM') or shutil.which('chromium') or shutil.which('chromium-browser')
         if not browser:
             async with async_playwright() as p:
                 browser_path = p.chromium.executable_path
