@@ -2,16 +2,69 @@
   "manifest_version": 2,
   "id": "ayu.goreview",
   "name": "阿羽围棋复盘",
-  "version": "0.3.0",
-  "description": "通过独立 Worker 解析野狐棋谱，调用云端 KataGo 并生成复盘图片。",
-  "author": {"name": "toya", "url": "https://github.com/Toyaspio"},
-  "urls": {"repository": "https://github.com/Toyaspio/GoReview"},
+  "version": "0.4.0",
+  "description": "内置围棋复盘服务，支持野狐棋谱与智子围棋 KataGo。",
+  "author": {
+    "name": "toya",
+    "url": "https://github.com/Toyaspio"
+  },
+  "urls": {
+    "repository": "https://github.com/Toyaspio/GoReview"
+  },
   "license": "MIT",
-  "host_application": {"min_version": "1.3.15", "max_version": "1.3.15"},
-  "sdk": {"min_version": "2.16.0", "max_version": "2.16.0"},
+  "host_application": {
+    "min_version": "1.3.15",
+    "max_version": "1.3.15"
+  },
+  "sdk": {
+    "min_version": "2.16.0",
+    "max_version": "2.16.0"
+  },
   "plugin_type": "integration",
-  "capabilities": ["send.text", "send.image", "maisaka.reply.generate"],
-  "dependencies": [{"type": "python_package", "name": "httpx", "version_spec": ">=0.28.1,<0.29"}],
-  "i18n": {"default_locale": "zh-CN"}
+  "capabilities": [
+    "send.text",
+    "send.image",
+    "maisaka.reply.generate"
+  ],
+  "dependencies": [
+    {
+      "type": "python_package",
+      "name": "httpx",
+      "version_spec": ">=0.28.1,<0.29"
+    },
+    {
+      "type": "python_package",
+      "name": "sgfmill",
+      "version_spec": "==1.1.1"
+    },
+    {
+      "type": "python_package",
+      "name": "fastapi",
+      "version_spec": "==0.115.12"
+    },
+    {
+      "type": "python_package",
+      "name": "uvicorn",
+      "version_spec": "==0.34.2"
+    },
+    {
+      "type": "python_package",
+      "name": "playwright",
+      "version_spec": "==1.56.0"
+    },
+    {
+      "type": "python_package",
+      "name": "python-socketio",
+      "version_spec": ">=5.11,<6"
+    },
+    {
+      "type": "python_package",
+      "name": "aiohttp",
+      "version_spec": ">=3.9,<4"
+    }
+  ],
+  "i18n": {
+    "default_locale": "zh-CN"
+  }
 }
 

@@ -5,6 +5,9 @@ import hmac
 import json
 import os
 import re
+import secrets
+import shutil
+import sys
 from urllib.parse import urlsplit
 import httpx
 from maibot_sdk import Command, HookHandler, Field, MaiBotPlugin, PluginConfigBase
@@ -20,10 +23,14 @@ class PluginSection(PluginConfigBase):
 
 
 class WorkerSection(PluginConfigBase):
+    mode: str = Field(default='auto', description='auto 自动选择内置服务；已有独立服务配置继续沿用')
+    zhizi_token: str = Field(default='', repr=False, json_schema_extra={'input_type':'password'}, description='智子账户 Token')
+    zhizi_account: str = Field(default='', description='智子手机号或邮箱')
+    zhizi_password: str = Field(default='', repr=False, json_schema_extra={'input_type':'password'}, description='智子账户密码；已有 Token 时可留空')
     url: str = Field(default='http://goreview-worker:8097', description='管理员配置的独立 Worker 内网地址')
     token: str = Field(default='', repr=False, json_schema_extra={'input_type':'password'},
                        description='优先使用 GOREVIEW_WORKER_TOKEN；至少32字符')
-    llm_summary: bool = Field(default=True, description='使用现有 Replyer 生成解释，失败使用基础摘要')
+    llm_summary: bool = Field(default=False, description='使用现有 Replyer 生成解释，失败使用基础摘要')
 
 
 class Config(PluginConfigBase):
@@ -59,10 +66,85 @@ class GoReviewPlugin(MaiBotPlugin):
         self.deliveries = None
         self.token = ''
         self.lifecycle = asyncio.Lock()
+        self.worker_lifespan = None
+        self.worker_app = None
+
+    async def _start_embedded_worker(self):
+        from .goreview.app import create_app
+        from .goreview.service import ReviewService
+        from playwright.async_api import async_playwright
+        self.ctx.paths.data_dir.mkdir(parents=True, exist_ok=True)
+        secret_file = self.ctx.paths.data_dir / 'worker-secret'
+        if not secret_file.exists():
+            fd = os.open(str(secret_file), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            with os.fdopen(fd, 'w', encoding='ascii') as f:
+                f.write(secrets.token_urlsafe(48))
+        self.token = secret_file.read_text(encoding='ascii').strip()
+        if len(self.token) < 32:
+            raise ValueError('worker_secret_invalid')
+        zhizi = self.config.worker.zhizi_token or os.environ.get('ZHIZI_USER_TOKEN', '')
+        if not zhizi and self.config.worker.zhizi_account and self.config.worker.zhizi_password:
+            account = self.config.worker.zhizi_account.strip()
+            key = 'email' if '@' in account else 'phone'
+            async with httpx.AsyncClient(timeout=20, trust_env=False, follow_redirects=False) as auth:
+                response = await auth.post('https://www.zhizigo.com/api/cluster/account/login',
+                    json={key: account, 'password': self.config.worker.zhizi_password})
+                response.raise_for_status()
+                value = response.json()
+                zhizi = value.get('token', '') if isinstance(value, dict) else ''
+        if not zhizi:
+            raise ValueError('zhizi_token_missing')
+        browser = os.environ.get('GOREVIEW_CHROMIUM') or shutil.which('chromium') or shutil.which('chromium-browser')
+        if not browser:
+            async with async_playwright() as p:
+                browser_path = p.chromium.executable_path
+            if not os.path.isfile(browser_path):
+                process = await asyncio.create_subprocess_exec(sys.executable, '-m', 'playwright', 'install', 'chromium',
+                    stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
+                try:
+                    if await asyncio.wait_for(process.wait(), timeout=300) != 0:
+                        raise ValueError('browser_install_failed')
+                except BaseException:
+                    if process.returncode is None:
+                        process.kill()
+                        await process.wait()
+                    raise
+            browser = browser_path
+        # Verify the renderer before accepting work that may incur cloud charges.
+        async with async_playwright() as p:
+            check = await p.chromium.launch(executable_path=browser)
+            await check.close()
+        def factory(store, renderer, client):
+            if browser:
+                renderer.executable_path = browser
+            return ReviewService(store, renderer, client, zhizi, backend='zhizi', allow_gpu=True,
+                perspective_verified=True, komi_verified=True, session_seconds=160,
+                concurrency=1, budget=200000, scan_quick=8, cache_epoch='embedded-v1')
+        app = create_app(directory=self.ctx.paths.data_dir / 'worker', token=self.token, service_factory=factory)
+        lifespan = app.router.lifespan_context(app)
+        await lifespan.__aenter__()
+        self.worker_app, self.worker_lifespan = app, lifespan
+        self.client = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://goreview-embedded',
+            headers={'Authorization': 'Bearer '+self.token}, timeout=15, trust_env=False)
 
     async def on_load(self):
         async with self.lifecycle:
             if self.client is not None:
+                return
+            mode = self.config.worker.mode
+            if mode == 'auto':
+                mode = 'external' if (self.config.worker.token or os.environ.get('GOREVIEW_WORKER_TOKEN')) else 'embedded'
+            if mode == 'embedded':
+                try:
+                    await self._start_embedded_worker()
+                except Exception as exc:
+                    self.ctx.logger.warning('GoReview not ready: %s', type(exc).__name__)
+                    return
+                self.deliveries = DeliveryStore(self.ctx.paths.data_dir/'delivery.sqlite3')
+                self.poller = asyncio.create_task(self._poll())
+                return
+            if mode != 'external':
+                self.ctx.logger.error('GoReview not ready: invalid_worker_mode')
                 return
             self.token = os.environ.get('GOREVIEW_WORKER_TOKEN') or self.config.worker.token
             if len(self.token) < 32:
@@ -88,6 +170,10 @@ class GoReviewPlugin(MaiBotPlugin):
             if self.client:
                 await self.client.aclose()
                 self.client = None
+            if self.worker_lifespan:
+                lifespan, self.worker_lifespan = self.worker_lifespan, None
+                self.worker_app = None
+                await lifespan.__aexit__(None, None, None)
 
     async def on_config_update(self, scope, config_data, version):
         if scope == 'self':

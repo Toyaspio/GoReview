@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ayugo-review"
-version = "0.3.0"
+version = "0.4.0"
 description = "Isolated MaiBot Go review worker"
 requires-python = ">=3.12"
 dependencies = ["httpx==0.28.1", "sgfmill==1.1.1", "fastapi==0.115.12", "uvicorn==0.34.2", "playwright==1.56.0", "python-socketio[asyncio_client]>=5.11,<6"]
@@ -21,3 +21,4 @@ goreview = ["assets/*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+

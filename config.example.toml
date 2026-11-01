@@ -5,7 +5,12 @@ allowed_groups = []
 receipt = "阿羽收到棋谱啦～正在认真看你的棋哦，稍等我一会儿呀 ♟️"
 
 [worker]
+mode = "auto"
+zhizi_account = ""
+zhizi_password = ""
+zhizi_token = ""
 url = "http://goreview-worker:8097"
 # 同 Worker 的 GOREVIEW_WORKER_TOKEN；不要提交实际值
 token = ""
-llm_summary = true
+llm_summary = false
+
