@@ -12,11 +12,17 @@
 
 ![阿羽围棋复盘报告示例](docs/report.png)
 
+## 获取智子 Token
+
+在 [智子围棋](https://www.zhizigo.com/) 注册或登录账号。复制 `deploy/.env.example` 为 `deploy/.env`，安装 Python 和 `httpx` 后运行 `python tools/zhizi_login.py`，输入智子手机号或邮箱和密码。脚本会将登录返回的 Token 保存到该配置文件，不会显示密码或 Token，也不会启动算力。
+
+请妥善保管 `deploy/.env`，并在其中配置 Worker 使用的随机令牌。具体步骤见 [安装指南](docs/INSTALL.md)。
+
 ## 安装
 
 需要 MaiBot、独立 Worker、Chromium 和可使用的智子围棋账户。云端分析会消耗智子账户额度。
 
-插件源码在 `maibot_goreview/`，Worker 在 `goreview/`。具体配置请看 [安装指南](docs/INSTALL.md)，报告内容介绍见 [功能说明](docs/DESIGN.md)。
+插件入口位于仓库根目录，Worker 在 `goreview/`。具体配置请看 [安装指南](docs/INSTALL.md)，报告内容介绍见 [功能说明](docs/DESIGN.md)。
 
 目前支持野狐公开分享链接。
 
